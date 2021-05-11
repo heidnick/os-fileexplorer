@@ -1,5 +1,7 @@
 #include <iostream>
 #include <SDL.h>
+#include <dirent.h>
+#include <vector>
 
 #define WIDTH 800
 #define HEIGHT 600
@@ -8,10 +10,59 @@
 void initialize(SDL_Renderer *renderer);
 void render(SDL_Renderer *renderer);
 
+class FileEntry {
+    public:
+        void setName(std::string n) {
+            name = n;
+        }
+        void setType(std::string t) {
+            type = t;
+        }
+        std::string getName() {
+            return name;
+        }
+        std::string getType() {
+            return type;
+        }
+
+    protected:
+        std::string name;
+        std::string type;
+};
+
 int main(int argc, char **argv)
 {
+    std::vector<FileEntry> file_entries;
+    
     char *home = getenv("HOME");
     printf("HOME: %s\n", home);
+    DIR *dir;
+    struct dirent *ent;
+    if ((dir = opendir ("/home/nheid/Desktop/..")) != NULL) {
+        /* print all the files and directories within directory */
+        while ((ent = readdir (dir)) != NULL) {
+            if (ent->d_ino != 262146) {
+                //printf ("%s\n", ent->d_name);
+                FileEntry entry;
+                entry.setName(ent->d_name);
+                if (ent->d_type == DT_DIR) {
+                    entry.setType("directory");
+                }else {
+                    entry.setType("file");
+                }
+                file_entries.push_back(entry);
+            }
+        }
+        closedir (dir);
+    } else {
+        /* could not open directory */
+        perror ("");
+        return EXIT_FAILURE;
+    }
+
+    for (int i=0; i<5; i++) {
+        std::cout << file_entries[i].getName() << " " << file_entries[i].getType() << std::endl;
+    }
 
     // initializing SDL as Video
     SDL_Init(SDL_INIT_VIDEO);
