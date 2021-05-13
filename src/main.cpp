@@ -5,6 +5,8 @@
 #include <dirent.h>
 #include <vector>
 #include <unistd.h>
+#include <sys/stat.h>
+#include <sstream>
 
 #define WIDTH 800
 #define HEIGHT 600
@@ -12,19 +14,23 @@
 class FileEntry {
     public:
         SDL_Texture *text_texture;
+        SDL_Texture *size_text_texture;
         SDL_Texture *icon_texture;
         SDL_Rect texture_rect;
+        SDL_Rect size_texture_rect;
         SDL_Rect icon_rect;
         std::string name;
         std::string type;
         bool isClicked;
+        int size;
+        std::string units;
 };
 
 typedef struct AppData {
     std::vector<FileEntry> file_entries;
     TTF_Font *font;
-    SDL_Texture *phrase;
-    SDL_Rect phrase_rect;
+    std::string current_path;
+    int largest_width;
 } AppData;
 
 void initializeFiles(AppData *data_ptr, char *path);
@@ -37,8 +43,9 @@ int main(int argc, char **argv)
 {
     //Initializing file entries
     AppData data;
-    char *home = getenv("HOME");
-    initializeFiles(&data, home);
+    char *path = getenv("HOME");
+    data.current_path = path;
+    initializeFiles(&data, path);
     
     // initializing SDL as Video
     SDL_Init(SDL_INIT_VIDEO);
@@ -66,15 +73,40 @@ int main(int argc, char **argv)
             case SDL_MOUSEBUTTONDOWN:
                 if (event.button.button == SDL_BUTTON_LEFT) {
                     int idx_clicked = event.button.y / 22;
-                    int high_bound = data.file_entries[idx_clicked].texture_rect.x + 32;
-                    if (event.button.x >= 10 && event.button.x <= high_bound) {
-                        std::cout << event.button.x << std::endl;
+                    int high_bound = data.file_entries[idx_clicked].texture_rect.w + 32;
+                    if (idx_clicked < data.file_entries.size()) {
+                        if (event.button.x >= 10 && event.button.x <= high_bound) {
+                            std::cout<<idx_clicked<<std::endl;
+                            if (data.file_entries[idx_clicked].type == "directory") {
+                                data.current_path += "/" + data.file_entries[idx_clicked].name;
+                                std::cout << "curpath init: " << data.current_path << std::endl;
+                                char *cstr = new char[data.current_path.length() + 1];
+                                strcpy(cstr, data.current_path.c_str());
+                                initializeFiles(&data, cstr);
+                                delete [] cstr;
+                                initialize(renderer, &data);
+                            }else {
+                                pid_t pid = fork();
+                                if (0 == pid) {
+                                    data.current_path += "/" + data.file_entries[idx_clicked].name;
+                                    char arg0[9];
+                                    char arg1[128];
+                                    strcpy(arg0, "xdg-open");
+                                    //strcpy(arg1, data.current_path.c_str());
+                                    strcpy(arg1, data.current_path.c_str());
+                                    std::cout << "arg1 " <<  arg1 <<std::endl;
+                                    char *const exec_args[3] = {arg0, arg1, NULL};
+                                    execvp("xdg-open", exec_args);
+                                }
+                            }
+                        }
                     }
                     break;
                 }
             //case SDL_MOUSEBUTTONUP:
             //    break;
         }
+        render(renderer, &data);
     }
 
     // clean up
@@ -90,24 +122,42 @@ int main(int argc, char **argv)
     Creates array of FileEntries sorted in alphabetical order
 */
 void initializeFiles(AppData *data_ptr, char *path) {
+    data_ptr->file_entries.clear();
     printf("PATH: %s\n", path);
     DIR *dir;
     struct dirent *ent;
+    struct stat fileInfo;
     if ((dir = opendir (path)) != NULL) {
         /* print all the files and directories within directory */
         while ((ent = readdir (dir)) != NULL) {
-            if (ent->d_ino != 262146) {
+            std::string temp = ent->d_name;
+            std::size_t found = temp.find(".");
+            if (!(found!=std::string::npos && temp.length() == 1)) {
                 FileEntry entry;
                 entry.name = ent->d_name;
                 if (ent->d_type == DT_DIR) {
                     entry.type = "directory";
                 }else {
                     std::string fullpath = path;
+                    stat(fullpath.c_str(), &fileInfo);
                     fullpath += "/" + entry.name;
                     if (access (fullpath.c_str(), X_OK)) {
                         entry.type = "executable";
                     }else {
                         entry.type = findType(entry.type);
+                    }
+                    if (fileInfo.st_size >= 1024 && fileInfo.st_size < 10480576) {
+                        entry.size = fileInfo.st_size / 1024;
+                        entry.units = "KiB";
+                    }else if (fileInfo.st_size >= 10480576 && fileInfo.st_size < 8589934592) {
+                        entry.size = fileInfo.st_size / 10480576;
+                        entry.units = "MiB";
+                    }else if (fileInfo.st_size >= 8589934592) {
+                        entry.size = fileInfo.st_size / 8589934592;
+                        entry.units = "GiB";
+                    }else {
+                        entry.size = fileInfo.st_size;
+                        entry.units = "B";
                     }
                 }
                 entry.isClicked = false;
@@ -170,6 +220,7 @@ void initialize(SDL_Renderer *renderer, AppData *data_ptr)
     // set color of background when erasing frame
     data_ptr->font = TTF_OpenFont("resrc/OpenSans-Regular.ttf", 20);
     SDL_Color color = { 0, 0, 0 };
+    int largest_width = 0;
 
     for (int i=0; i<data_ptr->file_entries.size(); i++) {
         //Creates and queues texture for the file name   
@@ -205,7 +256,29 @@ void initialize(SDL_Renderer *renderer, AppData *data_ptr)
         data_ptr->file_entries[i].icon_rect.h = 10;
         SDL_QueryTexture(data_ptr->file_entries[i].icon_texture, NULL, NULL, &(data_ptr->file_entries[i].icon_rect.w), 
                          &(data_ptr->file_entries[i].icon_rect.h));
+        if (data_ptr->file_entries[i].icon_rect.w > largest_width) {
+            largest_width = data_ptr->file_entries[i].icon_rect.w;
+        }
     }
+    /*data_ptr->largest_width = largest_width;
+    std::cout << largest_width + 32 << std::endl;
+    for (int i=0; i<data_ptr->file_entries.size(); i++) {
+        if (!(data_ptr->file_entries[i].type == "directory")) {
+            std::stringstream ss;
+            ss << data_ptr->file_entries[i].size;
+            std::string file_size = ss.str();
+            file_size += " " + data_ptr->file_entries[i].units;
+            const char* fsize = file_size.c_str();
+            SDL_Surface *size_text_surf = TTF_RenderText_Solid(data_ptr->font, fsize, color);
+            data_ptr->file_entries[i].size_text_texture = SDL_CreateTextureFromSurface(renderer, size_text_surf);
+            SDL_FreeSurface(size_text_surf);
+            data_ptr->file_entries[i].size_texture_rect.x = 100+ data_ptr->largest_width;
+            data_ptr->file_entries[i].size_texture_rect.y = (i*22);
+            SDL_QueryTexture(data_ptr->file_entries[i].size_text_texture, NULL, NULL, &(data_ptr->file_entries[i].size_texture_rect.w), 
+                            &(data_ptr->file_entries[i].size_texture_rect.h));
+        }
+        
+    }*/
 }
 
 /*
@@ -221,6 +294,7 @@ void render(SDL_Renderer *renderer, AppData *data_ptr)
     for (int i=0; i<data_ptr->file_entries.size(); i++) {
         SDL_RenderCopy(renderer, data_ptr->file_entries[i].icon_texture, NULL, &(data_ptr->file_entries[i].icon_rect));
         SDL_RenderCopy(renderer, data_ptr->file_entries[i].text_texture, NULL, &(data_ptr->file_entries[i].texture_rect));
+        //SDL_RenderCopy(renderer, data_ptr->file_entries[i].size_text_texture, NULL, &(data_ptr->file_entries[i].size_texture_rect));
     }
 
     // show rendered frame
