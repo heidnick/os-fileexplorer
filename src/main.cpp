@@ -16,7 +16,8 @@ class FileEntry {
         SDL_Rect texture_rect;
         SDL_Rect icon_rect;
         std::string name;
-        std::string type;    
+        std::string type;
+        bool isClicked;
 };
 
 typedef struct AppData {
@@ -63,9 +64,16 @@ int main(int argc, char **argv)
             // SDL_MOUSEMOTION:
             //    break;
             case SDL_MOUSEBUTTONDOWN:
-                break;
-            case SDL_MOUSEBUTTONUP:
-                break;
+                if (event.button.button == SDL_BUTTON_LEFT) {
+                    int idx_clicked = event.button.y / 22;
+                    int high_bound = data.file_entries[idx_clicked].texture_rect.x + 32;
+                    if (event.button.x >= 10 && event.button.x <= high_bound) {
+                        std::cout << event.button.x << std::endl;
+                    }
+                    break;
+                }
+            //case SDL_MOUSEBUTTONUP:
+            //    break;
         }
     }
 
@@ -102,7 +110,7 @@ void initializeFiles(AppData *data_ptr, char *path) {
                         entry.type = findType(entry.type);
                     }
                 }
-                //std::cout << entry.type << std::endl;
+                entry.isClicked = false;
                 data_ptr->file_entries.push_back(entry);
             }
         }
@@ -169,8 +177,8 @@ void initialize(SDL_Renderer *renderer, AppData *data_ptr)
         SDL_Surface *text_surf = TTF_RenderText_Solid(data_ptr->font, name, color);
         data_ptr->file_entries[i].text_texture = SDL_CreateTextureFromSurface(renderer, text_surf);
         SDL_FreeSurface(text_surf);
-        data_ptr->file_entries[i].texture_rect.x = 65;
-        data_ptr->file_entries[i].texture_rect.y = (i*20);
+        data_ptr->file_entries[i].texture_rect.x = 32;
+        data_ptr->file_entries[i].texture_rect.y = (i*22);
         SDL_QueryTexture(data_ptr->file_entries[i].text_texture, NULL, NULL, &(data_ptr->file_entries[i].texture_rect.w), 
                          &(data_ptr->file_entries[i].texture_rect.h));
 
@@ -192,7 +200,7 @@ void initialize(SDL_Renderer *renderer, AppData *data_ptr)
         data_ptr->file_entries[i].icon_texture = SDL_CreateTextureFromSurface(renderer, img_surf);
         SDL_FreeSurface(img_surf);
         data_ptr->file_entries[i].icon_rect.x = 10;
-        data_ptr->file_entries[i].icon_rect.y = i*20;
+        data_ptr->file_entries[i].icon_rect.y = i*22;
         data_ptr->file_entries[i].icon_rect.w = 10;
         data_ptr->file_entries[i].icon_rect.h = 10;
         SDL_QueryTexture(data_ptr->file_entries[i].icon_texture, NULL, NULL, &(data_ptr->file_entries[i].icon_rect.w), 
