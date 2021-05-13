@@ -256,11 +256,11 @@ void initialize(SDL_Renderer *renderer, AppData *data_ptr)
         data_ptr->file_entries[i].icon_rect.h = 10;
         SDL_QueryTexture(data_ptr->file_entries[i].icon_texture, NULL, NULL, &(data_ptr->file_entries[i].icon_rect.w), 
                          &(data_ptr->file_entries[i].icon_rect.h));
-        if (data_ptr->file_entries[i].icon_rect.w > largest_width) {
-            largest_width = data_ptr->file_entries[i].icon_rect.w;
+        if (data_ptr->file_entries[i].texture_rect.w > largest_width) {
+            largest_width = data_ptr->file_entries[i].texture_rect.w;
         }
     }
-    /*data_ptr->largest_width = largest_width;
+    data_ptr->largest_width = largest_width;
     std::cout << largest_width + 32 << std::endl;
     for (int i=0; i<data_ptr->file_entries.size(); i++) {
         if (!(data_ptr->file_entries[i].type == "directory")) {
@@ -272,13 +272,13 @@ void initialize(SDL_Renderer *renderer, AppData *data_ptr)
             SDL_Surface *size_text_surf = TTF_RenderText_Solid(data_ptr->font, fsize, color);
             data_ptr->file_entries[i].size_text_texture = SDL_CreateTextureFromSurface(renderer, size_text_surf);
             SDL_FreeSurface(size_text_surf);
-            data_ptr->file_entries[i].size_texture_rect.x = 100+ data_ptr->largest_width;
+            data_ptr->file_entries[i].size_texture_rect.x = 36+ data_ptr->largest_width;
             data_ptr->file_entries[i].size_texture_rect.y = (i*22);
             SDL_QueryTexture(data_ptr->file_entries[i].size_text_texture, NULL, NULL, &(data_ptr->file_entries[i].size_texture_rect.w), 
                             &(data_ptr->file_entries[i].size_texture_rect.h));
         }
         
-    }*/
+    }
 }
 
 /*
@@ -294,7 +294,10 @@ void render(SDL_Renderer *renderer, AppData *data_ptr)
     for (int i=0; i<data_ptr->file_entries.size(); i++) {
         SDL_RenderCopy(renderer, data_ptr->file_entries[i].icon_texture, NULL, &(data_ptr->file_entries[i].icon_rect));
         SDL_RenderCopy(renderer, data_ptr->file_entries[i].text_texture, NULL, &(data_ptr->file_entries[i].texture_rect));
-        //SDL_RenderCopy(renderer, data_ptr->file_entries[i].size_text_texture, NULL, &(data_ptr->file_entries[i].size_texture_rect));
+        //size_text_texture is the problem
+        if (!(data_ptr->file_entries[i].type == "directory")) {
+            SDL_RenderCopy(renderer, data_ptr->file_entries[i].size_text_texture, NULL, &(data_ptr->file_entries[i].size_texture_rect));
+        }
     }
 
     // show rendered frame
