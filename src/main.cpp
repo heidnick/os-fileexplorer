@@ -148,14 +148,14 @@ void initializeFiles(AppData *data_ptr, char *path) {
                         entry.type = findType(entry.type);
                     }
                     //std::cout << fileInfo.st_size << std::endl;
-                    if (fileInfo.st_size >= 1024 && fileInfo.st_size < 10480576) {
+                    if (fileInfo.st_size >= 1024 && fileInfo.st_size < 1048576) {
                         entry.size = fileInfo.st_size / 1024;
                         entry.units = "KiB";
-                    }else if (fileInfo.st_size >= 10480576 && fileInfo.st_size < 8589934592) {
-                        entry.size = fileInfo.st_size / 10480576;
+                    }else if (fileInfo.st_size >= 1048576 && fileInfo.st_size < 1073741824) {
+                        entry.size = fileInfo.st_size / 1048576;
                         entry.units = "MiB";
-                    }else if (fileInfo.st_size >= 8589934592) {
-                        entry.size = fileInfo.st_size / 8589934592;
+                    }else if (fileInfo.st_size >= 1073741824) {
+                        entry.size = fileInfo.st_size / 1073741824;
                         entry.units = "GiB";
                     }else {
                         entry.size = fileInfo.st_size;
