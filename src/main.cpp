@@ -22,7 +22,7 @@ class FileEntry {
         std::string name;
         std::string type;
         bool isClicked;
-        int size;
+        double size;
         std::string units;
 };
 
@@ -139,13 +139,15 @@ void initializeFiles(AppData *data_ptr, char *path) {
                     entry.type = "directory";
                 }else {
                     std::string fullpath = path;
-                    stat(fullpath.c_str(), &fileInfo);
+                    
                     fullpath += "/" + entry.name;
+                    stat(fullpath.c_str(), &fileInfo);
                     if (access (fullpath.c_str(), X_OK)) {
                         entry.type = "executable";
                     }else {
                         entry.type = findType(entry.type);
                     }
+                    //std::cout << fileInfo.st_size << std::endl;
                     if (fileInfo.st_size >= 1024 && fileInfo.st_size < 10480576) {
                         entry.size = fileInfo.st_size / 1024;
                         entry.units = "KiB";
