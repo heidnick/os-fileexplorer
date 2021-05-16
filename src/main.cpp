@@ -16,13 +16,16 @@ class FileEntry {
         SDL_Texture *text_texture;
         SDL_Texture *size_text_texture;
         SDL_Texture *icon_texture;
+        SDL_Texture *permissions_texture;
         SDL_Rect texture_rect;
         SDL_Rect size_texture_rect;
         SDL_Rect icon_rect;
+        SDL_Rect permissions_rect;
         std::string name;
         std::string type;
         double size;
         std::string units;
+        std::string permissions;
         int dir_contents_idx;
         int x_offset;
 };
@@ -37,10 +40,15 @@ typedef struct AppData {
     SDL_Texture *rec_r_img_texture;
     SDL_Texture *rec_g_img_texture;
     SDL_Texture *rec_text_texture;
+    SDL_Texture *up_texture;
+    SDL_Texture *down_texture;
     SDL_Rect rec_r_img_rect;
     SDL_Rect rec_g_img_rect;
     SDL_Rect rec_text_rect;
+    SDL_Rect up_rect;
+    SDL_Rect down_rect;
     std::vector<std::vector<FileEntry>> file_entries;
+    int scroll_offset;
 } AppData;
 
 void initializeRecToggle(SDL_Renderer *renderer, AppData *data_ptr);
@@ -58,6 +66,7 @@ int main(int argc, char **argv)
     char *path = getenv("HOME");
     data.current_path = path;
     data.rec_toggle = false;
+    data.scroll_offset = 0;
     initializeFiles(&data, path);
     
     // initializing SDL as Video
@@ -86,8 +95,48 @@ int main(int argc, char **argv)
             //    break;
             case SDL_MOUSEBUTTONDOWN:
                 if (event.button.button == SDL_BUTTON_LEFT) {
+                    //Scroll downwards
+                    if (event.button.x >= 768 && event.button.x <= 798 && event.button.y >= 565 && event.button.y <= 598) {
+                        data.scroll_offset += 100;
+                        std::cout << "down: " << data.scroll_offset << std::endl;
+                        if (data.rec_toggle == true) {
+                            data.file_entries.clear();
+                            char *cstr = new char[data.current_path.length() + 1];
+                            strcpy(cstr, data.current_path.c_str());
+                            initializeFiles(&data, cstr);
+                            delete [] cstr;
+                            data.last_y = 0;
+                            initRecursive(renderer, &data, data.current_path, 0, 0);
+                        }else {
+                            initialize(renderer, &data, data.file_entries.size() - 1);
+                        }
+                    }
+
+                    //Scroll up
+                    if (event.button.x >= 768 && event.button.x <= 798 && event.button.y >= 525 && event.button.y <= 558) {
+                        if (data.scroll_offset - 100 < 0) {
+                            data.scroll_offset = 0;
+                        }else {
+                            data.scroll_offset -= 100;
+                        }
+                        std::cout << "up: " << data.scroll_offset << std::endl; 
+                        if (data.rec_toggle == true) {
+                            data.last_y = 0;
+                            data.file_entries.clear();
+                            char *cstr = new char[data.current_path.length() + 1];
+                            strcpy(cstr, data.current_path.c_str());
+                            initializeFiles(&data, cstr);
+                            delete [] cstr;
+                            data.last_y = 0;
+                            initRecursive(renderer, &data, data.current_path, 0, 0);
+                        }else {
+                            initialize(renderer, &data, data.file_entries.size() - 1);
+                        }
+                    }
+
                     //Toggling recursive mode
-                    if (event.button.x >= 776 && event.button.x <= 798 && event.button.y >= 2 && event.button.y <= 24) {
+                    if (event.button.x >= 768 && event.button.x <= 798 && event.button.y >= 2 && event.button.y <= 24) {
+                        data.scroll_offset = 0;
                         if (data.rec_toggle == true) {
                             data.rec_toggle = false;
                             char *cstr = new char[data.current_path.length() + 1];
@@ -100,14 +149,16 @@ int main(int argc, char **argv)
                             data.rec_toggle = true;
                         }
                     }
+                    
 
                     if (data.rec_toggle == false) {
                         // Navigate through current folder
-                        int idx_clicked = event.button.y / 22;
+                        int idx_clicked = (event.button.y + data.scroll_offset) / 22;
                         if (idx_clicked < data.file_entries[0].size()) {
                             int high_bound = data.file_entries[0][idx_clicked].texture_rect.w + 32;
                             if (event.button.x >= 10 && event.button.x <= high_bound) {
                                 if (data.file_entries[0][idx_clicked].type == "directory") {
+                                    data.scroll_offset = 0;
                                     data.current_path += "/" + data.file_entries[0][idx_clicked].name;
                                     char *cstr = new char[data.current_path.length() + 1];
                                     strcpy(cstr, data.current_path.c_str());
@@ -196,8 +247,40 @@ void initializeFiles(AppData *data_ptr, char *path) {
                         entry.size = fileInfo.st_size;
                         entry.units = "B";
                     }
+
+                    entry.permissions = "U: (";
+                    //Permissions
+                    if( fileInfo.st_mode & S_IRUSR ){
+                        entry.permissions += "r";
+                    }
+                    if( fileInfo.st_mode & S_IWUSR ){
+                        entry.permissions += "w";
+                    }
+                    if( fileInfo.st_mode & S_IXUSR ){
+                        entry.permissions += "x";
+                    }
+                    entry.permissions += ") G: (";
+                    if( fileInfo.st_mode & S_IRGRP ){
+                        entry.permissions += "r";
+                    }
+                    if( fileInfo.st_mode & S_IWGRP ){
+                        entry.permissions += "w";
+                    }
+                    if( fileInfo.st_mode & S_IXGRP ){
+                        entry.permissions += "x";
+                    }
+                    entry.permissions += ") E: (";
+                    if( fileInfo.st_mode & S_IROTH ){
+                        entry.permissions += "r";
+                    }
+                    if( fileInfo.st_mode & S_IWOTH ){
+                        entry.permissions += "w";
+                    }
+                    if( fileInfo.st_mode & S_IXOTH ){
+                        entry.permissions += "x";
+                    }
+                    entry.permissions += ")";
                 }
-                //std::cout << "idx: " << idx << std::endl;
                 entry.dir_contents_idx = -1;
                 entries.push_back(entry);
             }
@@ -272,7 +355,7 @@ void initialize(SDL_Renderer *renderer, AppData *data_ptr, int idx)
         data_ptr->file_entries[idx][i].text_texture = SDL_CreateTextureFromSurface(renderer, text_surf);
         SDL_FreeSurface(text_surf);
         data_ptr->file_entries[idx][i].texture_rect.x = 32;
-        data_ptr->file_entries[idx][i].texture_rect.y = (i*22);
+        data_ptr->file_entries[idx][i].texture_rect.y = (i*22) - data_ptr->scroll_offset;
         SDL_QueryTexture(data_ptr->file_entries[idx][i].text_texture, NULL, NULL, &(data_ptr->file_entries[idx][i].texture_rect.w), 
                          &(data_ptr->file_entries[idx][i].texture_rect.h));
 
@@ -294,7 +377,7 @@ void initialize(SDL_Renderer *renderer, AppData *data_ptr, int idx)
         data_ptr->file_entries[idx][i].icon_texture = SDL_CreateTextureFromSurface(renderer, img_surf);
         SDL_FreeSurface(img_surf);
         data_ptr->file_entries[idx][i].icon_rect.x = 10;
-        data_ptr->file_entries[idx][i].icon_rect.y = i*22;
+        data_ptr->file_entries[idx][i].icon_rect.y = i*22  - data_ptr->scroll_offset;
         data_ptr->file_entries[idx][i].icon_rect.w = 10;
         data_ptr->file_entries[idx][i].icon_rect.h = 10;
         SDL_QueryTexture(data_ptr->file_entries[idx][i].icon_texture, NULL, NULL, &(data_ptr->file_entries[idx][i].icon_rect.w), 
@@ -316,11 +399,21 @@ void initialize(SDL_Renderer *renderer, AppData *data_ptr, int idx)
                 SDL_Surface *size_text_surf = TTF_RenderText_Solid(data_ptr->font, fsize, color);
                 data_ptr->file_entries[idx][i].size_text_texture = SDL_CreateTextureFromSurface(renderer, size_text_surf);
                 SDL_FreeSurface(size_text_surf);
-                data_ptr->file_entries[idx][i].size_texture_rect.x = 36+ data_ptr->largest_width;
-                data_ptr->file_entries[idx][i].size_texture_rect.y = (i*22);
+                data_ptr->file_entries[idx][i].size_texture_rect.x = 36 + data_ptr->largest_width;
+                data_ptr->file_entries[idx][i].size_texture_rect.y = (i*22)  - data_ptr->scroll_offset;
                 SDL_QueryTexture(data_ptr->file_entries[idx][i].size_text_texture, NULL, NULL, &(data_ptr->file_entries[idx][i].size_texture_rect.w), 
                                 &(data_ptr->file_entries[idx][i].size_texture_rect.h));
             }
+
+            const char* permissions = data_ptr->file_entries[idx][i].permissions.c_str();
+            SDL_Surface *permissions_surf = TTF_RenderText_Solid(data_ptr->font, permissions, color);
+            data_ptr->file_entries[idx][i].permissions_texture = SDL_CreateTextureFromSurface(renderer, permissions_surf);
+            SDL_FreeSurface(permissions_surf);
+            data_ptr->file_entries[idx][i].permissions_rect.x = 36 + data_ptr->largest_width + 120;
+            data_ptr->file_entries[idx][i].permissions_rect.y = (i*22)  - data_ptr->scroll_offset;
+            SDL_QueryTexture(data_ptr->file_entries[idx][i].permissions_texture, NULL, NULL, &(data_ptr->file_entries[idx][i].permissions_rect.w), 
+                            &(data_ptr->file_entries[idx][i].permissions_rect.h));
+
         }
     }
     
@@ -338,7 +431,7 @@ void initRecursive(SDL_Renderer *renderer, AppData *data_ptr, std::string path, 
         data_ptr->file_entries[idx][i].text_texture = SDL_CreateTextureFromSurface(renderer, text_surf);
         SDL_FreeSurface(text_surf);
         data_ptr->file_entries[idx][i].texture_rect.x = 32 + (15 * x_offset);
-        data_ptr->file_entries[idx][i].texture_rect.y = data_ptr->last_y;
+        data_ptr->file_entries[idx][i].texture_rect.y = data_ptr->last_y - data_ptr->scroll_offset;
 
         SDL_QueryTexture(data_ptr->file_entries[idx][i].text_texture, NULL, NULL, &(data_ptr->file_entries[idx][i].texture_rect.w), 
                          &(data_ptr->file_entries[idx][i].texture_rect.h));
@@ -361,7 +454,7 @@ void initRecursive(SDL_Renderer *renderer, AppData *data_ptr, std::string path, 
         data_ptr->file_entries[idx][i].icon_texture = SDL_CreateTextureFromSurface(renderer, img_surf);
         SDL_FreeSurface(img_surf);
         data_ptr->file_entries[idx][i].icon_rect.x = 10 + (15 * x_offset);
-        data_ptr->file_entries[idx][i].icon_rect.y = data_ptr->last_y;
+        data_ptr->file_entries[idx][i].icon_rect.y = data_ptr->last_y - data_ptr->scroll_offset;
         data_ptr->last_y += 25;
 
         data_ptr->file_entries[idx][i].icon_rect.w = 10;
@@ -397,6 +490,10 @@ void render(SDL_Renderer *renderer, AppData *data_ptr)
     }else {
         SDL_RenderCopy(renderer, data_ptr->rec_r_img_texture, NULL, &(data_ptr->rec_r_img_rect));
     }
+
+    SDL_RenderCopy(renderer, data_ptr->up_texture, NULL, &(data_ptr->up_rect));
+    SDL_RenderCopy(renderer, data_ptr->down_texture, NULL, &(data_ptr->down_rect));
+
     
     SDL_RenderCopy(renderer, data_ptr->rec_text_texture, NULL, &(data_ptr->rec_text_rect));
     
@@ -408,6 +505,7 @@ void render(SDL_Renderer *renderer, AppData *data_ptr)
             //size_text_texture is the problem
             if (!(data_ptr->file_entries[i][j].type == "directory") && data_ptr->rec_toggle == false) {
                 SDL_RenderCopy(renderer, data_ptr->file_entries[i][j].size_text_texture, NULL, &(data_ptr->file_entries[i][j].size_texture_rect));
+                SDL_RenderCopy(renderer, data_ptr->file_entries[i][j].permissions_texture, NULL, &(data_ptr->file_entries[i][j].permissions_rect));
             }
         }
     }
@@ -424,15 +522,21 @@ void initializeRecToggle(SDL_Renderer *renderer, AppData *data_ptr) {
     //Creating red and green buttons
     SDL_Surface *rec_r_img_surf = IMG_Load("resrc/red.png");
     SDL_Surface *rec_g_img_surf = IMG_Load("resrc/green.png");
+    SDL_Surface *up_surf = IMG_Load("resrc/up-arrow.png");
+    SDL_Surface *down_surf = IMG_Load("resrc/down-arrow.png");
     SDL_Surface *rec_text_surf = TTF_RenderText_Solid(data_ptr->font, "Click to toggle recursive mode.", color);
     
     data_ptr->rec_r_img_texture = SDL_CreateTextureFromSurface(renderer, rec_r_img_surf);
     data_ptr->rec_g_img_texture = SDL_CreateTextureFromSurface(renderer, rec_g_img_surf);
     data_ptr->rec_text_texture = SDL_CreateTextureFromSurface(renderer, rec_text_surf);
+    data_ptr->up_texture = SDL_CreateTextureFromSurface(renderer, up_surf);
+    data_ptr->down_texture = SDL_CreateTextureFromSurface(renderer, down_surf);
 
     SDL_FreeSurface(rec_r_img_surf);
     SDL_FreeSurface(rec_g_img_surf);
     SDL_FreeSurface(rec_text_surf);
+    SDL_FreeSurface(up_surf);
+    SDL_FreeSurface(down_surf);
 
     data_ptr->rec_r_img_rect.x = 776;
     data_ptr->rec_r_img_rect.y = 2;
@@ -444,8 +548,19 @@ void initializeRecToggle(SDL_Renderer *renderer, AppData *data_ptr) {
     data_ptr->rec_g_img_rect.h = 10;
     data_ptr->rec_text_rect.x = 570;
     data_ptr->rec_text_rect.y = 2;
+    
+    data_ptr->up_rect.x = 768;
+    data_ptr->up_rect.y = 525;
+    data_ptr->up_rect.w = 30;
+    data_ptr->up_rect.h = 33;
+    data_ptr->down_rect.x = 768;
+    data_ptr->down_rect.y = 565;
+    data_ptr->down_rect.w = 30;
+    data_ptr->down_rect.h = 33;
 
     SDL_QueryTexture(data_ptr->rec_r_img_texture, NULL, NULL, &(data_ptr->rec_r_img_rect.w), &(data_ptr->rec_r_img_rect.h));
     SDL_QueryTexture(data_ptr->rec_g_img_texture, NULL, NULL, &(data_ptr->rec_g_img_rect.w), &(data_ptr->rec_g_img_rect.h));
     SDL_QueryTexture(data_ptr->rec_text_texture, NULL, NULL, &(data_ptr->rec_text_rect.w), &(data_ptr->rec_text_rect.h));
+    SDL_QueryTexture(data_ptr->up_texture, NULL, NULL, &(data_ptr->up_rect.w), &(data_ptr->up_rect.h));
+    SDL_QueryTexture(data_ptr->down_texture, NULL, NULL, &(data_ptr->down_rect.w), &(data_ptr->down_rect.h));
 }
